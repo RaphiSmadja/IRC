@@ -18,6 +18,8 @@
 #include <string>
 #include <ctime>
 
+using namespace std; //On utilise un espace de noms ici
+
 void my_sleep(unsigned msec) {
 	struct timespec req, rem;
 	int err;
@@ -81,12 +83,11 @@ bool checkSocket(unsigned int *sock){
 	}
 }
 //Management and initialization of the connection
-bool checkServer(std::string *ip,struct sockaddr_in *serv_addr,unsigned int *port,unsigned int sock,bool ipvalid){
-    int errorCount=0;
+bool checkServer(string *ip,struct sockaddr_in *serv_addr,unsigned int *port,unsigned int sock,bool ipvalid){
   	while(true){
   		if(ipvalid){
 			printf("Entrer l'IP de votre serveur:");
-			std::cin >> (*ip);
+			cin >> (*ip);
 		}
 		memset(&*serv_addr, '0', sizeof(*serv_addr));
 
@@ -96,40 +97,34 @@ bool checkServer(std::string *ip,struct sockaddr_in *serv_addr,unsigned int *por
 		if(inet_pton(AF_INET, (*ip).c_str(), &(*serv_addr).sin_addr)<=0)
 		{
 			printf("Adresse invalide(%s:%d)/ Adresse non prise en charge \n",(*ip).c_str() ,*port);
-			errorCount++;
 		}else{
 			if (connect(sock, (struct sockaddr *)&*serv_addr, sizeof(*serv_addr)) < 0)
 			{
 				printf("La connexion a échoué.\n");
-				errorCount++;
 			}else{
 				return true;
 			}
 		}
-		if(errorCount > 100){
-			printf("Trop d'essai.\n");
-			return false;
-		}
     }
 }
 //sending the nickname to the server and save nickname
-bool checkPseudo(std::string *pseudo,unsigned  int sock){
+bool checkPseudo(string *pseudo,unsigned  int sock){
     signed int valRead;
     unsigned int minSizepseudo=5;
-    std::string comPseu="70";  
+    string comPseu="70";  
     char buffer[1024] = {0};
     int errorCount=0;
   	while(true){
-		std::string tmp;
+		string tmp;
 	  	while((*pseudo).length()<minSizepseudo){
 			printf("Entrer votre pseudo:\n");
-			std::cin >> (*pseudo);
+			cin >> (*pseudo);
 	  		if((*pseudo).length()<minSizepseudo){
 				printf("Votre pseudo est trop cour (%d caractère minimum).\n",minSizepseudo);
 	  		}
-			std::stringstream ss;
+			stringstream ss;
 			ss << comPseu << "&" << (*pseudo) << "&";
-			std::string tmp = ss.str();
+			string tmp = ss.str();
 			if((*pseudo).length()>minSizepseudo){
     			send(sock , tmp.c_str() , tmp.length() , 0 );
 			}
@@ -153,16 +148,16 @@ bool checkPseudo(std::string *pseudo,unsigned  int sock){
     }
 }
 //Request recovery and transformation into string
-std::string readToString(unsigned  int sock){
+string readToString(unsigned  int sock){
     char buffer[1024] = {0};
-    signed int valRead;
-	std::string tot;
+    int valRead;
+	string tot;
 	while(true){
 		valRead = read( sock , buffer,1024);
 		if(valRead!=1024){
 			buffer[valRead]='\0';
 		}
-		std::stringstream ss;
+		stringstream ss;
 		ss << tot << buffer;
 		tot = ss.str();
 		if(valRead!=1024){
@@ -171,7 +166,7 @@ std::string readToString(unsigned  int sock){
 	}
 }
 //Display the menu
-void printMenu(int roomNumber,std::map <int, int> roomList,std::string ip){
+void printMenu(int roomNumber,map <int, int> roomList,string ip){
 	printf("\t\t\tServeur n°%s\n",ip.c_str());
 	printf("0 . Quitter le programme\n");
 	for (int i = 0; i < roomNumber; ++i){
@@ -182,14 +177,14 @@ void printMenu(int roomNumber,std::map <int, int> roomList,std::string ip){
 }
 void clearIn(){while ( getchar() != '\n' );}
 //room management
-int roomGest(std::string menuInfo,std::map <int, int> *roomList){
-	std::vector<std::string> tab;
+int roomGest(string menuInfo,map <int, int> *roomList){
+	vector<string> tab;
 	char *str;
 	str = const_cast<char *>(menuInfo.c_str());
 	char * pch;
 	pch = strtok (str,"&");
 	while (pch != NULL){
-		std::string tmp = pch;
+		string tmp = pch;
 		tab.push_back(tmp);
 		pch = strtok (NULL, "&");
 	}
@@ -200,18 +195,18 @@ int roomGest(std::string menuInfo,std::map <int, int> *roomList){
 }
 
 int main(int argc, char const *argv[]){
-    struct sockaddr_in serv_addr;
-	std::map <int, int> roomList;
-	std::string previousHist="";
-	std::string menuInfo="";
-    std::string pseudo="";
-    std::string msg="";
-	std::string Hist="";
-    std::string comInfo="71&";
-    std::string comMess="50";
-    std::string comSend="51";
-    std::string ip="";
-    unsigned int port = 8001;
+    struct sockaddr_in serv_addr;	// sockaddr
+	map <int, int> roomList;
+	string previousHist="";
+	string menuInfo="";
+    string pseudo="";
+    string msg="";
+	string Hist="";
+    string comInfo="71&";
+    string comMess="50";
+    string comSend="51";
+    string ip="";
+    unsigned int port = 666;
     unsigned int chanel = 0;
     unsigned int sock = 0;
     bool checkMenuQuit = false;
@@ -231,14 +226,14 @@ int main(int argc, char const *argv[]){
 		checkQuit = false;
     	checkMenuQuit = false;
 		send(sock , comInfo.c_str() , comInfo.length() , 0 );
-		menuInfo=readToString(sock);
+		menuInfo = readToString(sock);
 		roomNumber = roomGest(menuInfo,&roomList);
 		msg="";
 		while(!checkMenuQuit){
 			system("clear");
 			printMenu(roomNumber,roomList,ip);
 			printf("\nEntrez votre choix:\n");
-			std::cin >> msg;
+			cin >> msg;
 			if(msg.compare("0")==0){
 				return -1;
 			}
@@ -257,12 +252,12 @@ int main(int argc, char const *argv[]){
 			while(!kbhit()){
 				if (Hist.compare(previousHist)!=0||checksend==true){
 					system("clear");
-					std::cout << Hist;
+					cout << Hist;
 					previousHist = Hist;
 					printf("\tAppuyez sur échap pour quitter et sur Enter pour écrire.\n");
 					checksend=false;
 				}
-				std::stringstream ss;
+				stringstream ss;
 				ss << comMess << "&" << chanel << "&";
 			    send(sock , (ss.str()).c_str() , (ss.str()).length() , 0 );
 			    Hist = readToString(sock);
@@ -274,8 +269,8 @@ int main(int argc, char const *argv[]){
 			if(10==ch){//enter
 				checksend=true;
 				printf("Entrer votre text:\n");
-				std::cin >> msg;
-				std::stringstream ss;
+				cin >> msg;
+				stringstream ss;
 				ss << comSend << "&" << chanel << "&" <<pseudo << "&" << msg.c_str() << "&";
 				msg = ss.str();
 				send(sock , msg.c_str() , msg.length() , 0 );
