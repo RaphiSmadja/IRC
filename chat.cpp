@@ -20,38 +20,7 @@
 
 using namespace std; //On utilise un espace de noms ici
 
-void my_sleep(unsigned msec) {
-	struct timespec req, rem;
-	int err;
-	req.tv_sec = msec / 1000;
-	req.tv_nsec = (msec % 1000) * 1000000;
-	while ((req.tv_sec != 0) || (req.tv_nsec != 0)) {
-		if (nanosleep(&req, &rem) == 0)
-			break;
-		err = errno;
-		// Interrupted; continue
-		if (err == EINTR) {
-			req.tv_sec = rem.tv_sec;
-			req.tv_nsec = rem.tv_nsec;
-		}
-		// Unhandleable error (EFAULT (bad pointer), EINVAL (bad timeval in tv_nsec), or ENOSYS (function not supported))
-		break;
-	}
-}
-void changemode(int dir){
-  static struct termios oldt, newt;
- 
-  if ( dir == 1 )
-  {
-    tcgetattr( STDIN_FILENO, &oldt);
-    newt = oldt;
-    newt.c_lflag &= ~( ICANON | ECHO );
-    tcsetattr( STDIN_FILENO, TCSANOW, &newt);
-  }
-  else
-    tcsetattr( STDIN_FILENO, TCSANOW, &oldt);
-}
-//kbhit version linux
+//kbhit version linux s'active lors d'une pression sur le clavier
 int kbhit (void){
   struct timeval tv;
   fd_set rdfs;
@@ -84,63 +53,47 @@ bool checkSocket(unsigned int *sock){
 }
 //Management and initialization of the connection
 bool checkServer(string *ip,struct sockaddr_in *serv_addr,unsigned int *port,unsigned int sock,bool ipvalid){
-  	while(true){
-  		if(ipvalid){
-			printf("Entrer l'IP de votre serveur:");
-			cin >> (*ip);
-		}
-		memset(&*serv_addr, '0', sizeof(*serv_addr));
-
-		(*serv_addr).sin_family = AF_INET;
-		(*serv_addr).sin_port = htons(*port);
-		//server connection
-		if(inet_pton(AF_INET, (*ip).c_str(), &(*serv_addr).sin_addr)<=0)
-		{
-			printf("Adresse invalide(%s:%d)/ Adresse non prise en charge \n",(*ip).c_str() ,*port);
+	(*serv_addr).sin_family = AF_INET;
+	(*serv_addr).sin_port = htons(*port);
+	//server connection
+	if(inet_pton(AF_INET, (*ip).c_str(), &(*serv_addr).sin_addr)<=0)
+	{
+		printf("Adresse invalide(%s:%d)/ Adresse non prise en charge \n",(*ip).c_str() ,*port);
+	}else{
+		if (connect(sock, (struct sockaddr *)&*serv_addr, sizeof(*serv_addr)) < 0)
+		{	
+			return false;
+			printf("La connexion a échoué.(client not synchro with serv)\n");
 		}else{
-			if (connect(sock, (struct sockaddr *)&*serv_addr, sizeof(*serv_addr)) < 0)
-			{
-				printf("La connexion a échoué.\n");
-			}else{
-				return true;
-			}
+			return true;
 		}
-    }
+	}
 }
 //sending the nickname to the server and save nickname
 bool checkPseudo(string *pseudo,unsigned  int sock){
     signed int valRead;
-    unsigned int minSizepseudo=5;
-    string comPseu="70";  
+    unsigned int minSizepseudo=3;
+    string sockPseudo="pseudoSend";  
     char buffer[1024] = {0};
-    int errorCount=0;
   	while(true){
 		string tmp;
 	  	while((*pseudo).length()<minSizepseudo){
 			printf("Entrer votre pseudo:\n");
 			cin >> (*pseudo);
 	  		if((*pseudo).length()<minSizepseudo){
-				printf("Votre pseudo est trop cour (%d caractère minimum).\n",minSizepseudo);
+				printf("Votre pseudo est trop court (%d caractère minimum).\n",minSizepseudo);
 	  		}
 			stringstream ss;
-			ss << comPseu << "&" << (*pseudo) << "&";
+			ss << sockPseudo << "&" << (*pseudo) << "&";
 			string tmp = ss.str();
 			if((*pseudo).length()>minSizepseudo){
     			send(sock , tmp.c_str() , tmp.length() , 0 );
 			}
 	  	}
-    	valRead = read( sock , buffer,1337);
+    	valRead = read(sock ,buffer,1337);
     	if(valRead != 1337){
     		if(buffer[0]!='1'){
-    			errorCount++;
-    			if(errorCount%100==0){
-	    			printf("Votre pseudo est refusé.\n");
-	    			tmp="";
-	    			if(errorCount>10000){
-						printf("Trop d'essai.\n");
-	    				return false;
-	    			}
-    			}
+    			tmp="";
     		}else{
     			return true;
     		}
@@ -163,16 +116,6 @@ string readToString(unsigned  int sock){
 		if(valRead!=1024){
 			return tot;
 		}
-	}
-}
-//Display the menu
-void printMenu(int roomNumber,map <int, int> roomList,string ip){
-	printf("\t\t\tServeur n°%s\n",ip.c_str());
-	printf("0 . Quitter le programme\n");
-	for (int i = 0; i < roomNumber; ++i){
-		printf("%d . Salle %d\t",i+1,roomList[i]);
-		if(i!=0&&i%4==0)
-			printf("\n");
 	}
 }
 void clearIn(){while ( getchar() != '\n' );}
@@ -202,10 +145,11 @@ int main(int argc, char const *argv[]){
     string pseudo="";
     string msg="";
 	string Hist="";
-    string comInfo="71&";
-    string comMess="50";
-    string comSend="51";
-    string ip="";
+    string comInfo="infoSend";
+    string comMess="messageSend";
+    string comSend="sockSend";
+    string ip="127.0.0.1";
+    int choice = 0;
     unsigned int port = 666;
     unsigned int chanel = 0;
     unsigned int sock = 0;
@@ -216,7 +160,7 @@ int main(int argc, char const *argv[]){
     if(!checkSocket(&sock)){
     	return -1;
     }
-    if(!checkServer(&ip,&serv_addr,&port,sock,true)){
+    if(!checkServer(&ip,&serv_addr,&port,sock,true)){	
     	return -1;
     }
 	if(!checkPseudo(&pseudo,sock)){
@@ -231,7 +175,11 @@ int main(int argc, char const *argv[]){
 		msg="";
 		while(!checkMenuQuit){
 			system("clear");
-			printMenu(roomNumber,roomList,ip);
+			printf("\t\t\tServeur n°%s\n",ip.c_str());
+			printf("0 . Quitter le programme\n");
+			for (int i = 0; i < roomNumber; ++i){
+				printf("%d . Salle %d\t",i+1,roomList[i]);
+			}
 			printf("\nEntrez votre choix:\n");
 			cin >> msg;
 			if(msg.compare("0")==0){
@@ -248,7 +196,6 @@ int main(int argc, char const *argv[]){
 		}
 		checksend=true;
 		while(!checkQuit){
-			changemode(1);
 			while(!kbhit()){
 				if (Hist.compare(previousHist)!=0||checksend==true){
 					system("clear");
@@ -261,11 +208,9 @@ int main(int argc, char const *argv[]){
 				ss << comMess << "&" << chanel << "&";
 			    send(sock , (ss.str()).c_str() , (ss.str()).length() , 0 );
 			    Hist = readToString(sock);
-				my_sleep(400);
 			}
 			int ch;
 			ch=getchar();
-			changemode(0);
 			if(10==ch){//enter
 				checksend=true;
 				printf("Entrer votre text:\n");

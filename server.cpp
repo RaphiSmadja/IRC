@@ -16,64 +16,34 @@
 #define PORT 666
 
 using namespace std; //On utilise un espace de noms ici
-
-int numberOfRoom=5;
-map <int, vector <string>> roomList;
+map <int, vector <string>> chanList;
 int addrlen;
-int playeur=0;
-int threadCount=0;
+int playeur(0);
+int threadCount(0);
 struct sockaddr_in address;
-map <string, string> pseudoList;
+map <string, string> pseudoMap;
 int server_fd;
-
+int numberOfRoom(2);
 //Save a string to a txt file
 void saveRoomText(int roomNum){
 	string name;
     stringstream ssName;
 	FILE * pFile;
-	ssName << roomNum << ".txt";
+	ssName << "salle" << roomNum << ".txt";
 	name = ssName.str();
-	pFile = fopen (name.c_str(),"w");
+	pFile = fopen (name.c_str(),"w+");
 	if (pFile!=NULL){
-		for (unsigned int i = 0; i < roomList[roomNum].size(); ++i){
+		for (int i = 0; i < chanList[roomNum].size(); ++i){
 			stringstream ssString;
-			ssString << roomList[roomNum][i] << "\n";
+			ssString << chanList[roomNum][i] << "\n";
 			fputs((ssString.str()).c_str(),pFile);			
 		}
 		fclose (pFile);
 	}
 }
 
-//Extract the text from a txt file
-void readRoomText(int roomNum){
-	string name;
-	stringstream ssName;
-    /** Objects of this class use a string buffer that contains a sequence of characters. 
-    This sequence of characters can be accessed directly as a string object, using member str. **/
-	FILE * pFile;
-	ssName << roomNum << ".txt";
-	name = ssName.str();
-	pFile = fopen (name.c_str(),"r");  //. c_str() premet de récupérer le char* contenue dans un objet de type string
-	if (pFile!=NULL){
-		char c;
-		do{
-			vector<string> requestSplit;
-			string line="";
-			do{
-				c = fgetc(pFile);
-				if(c != EOF && c != '\n'){
-					stringstream ss;
-					ss << line << c;
-					line = ss.str();
-				}
-			}while(c != EOF && c != '\n');
-			roomList[roomNum].push_back(line);
-		} while(c != EOF);
-		fclose (pFile);
-	}
-}
 //Request recovery and transformation into string
-string readToString(unsigned  int sock){
+string readToString(int sock){
     char buffer[1024] = {0};
     signed int valRead;
 	string tot;
@@ -90,40 +60,37 @@ string readToString(unsigned  int sock){
 		}
 	}
 }
-//Divide a request into different string
-vector<string> splitRequest(string req){
-	vector<string> tab;
-	char *str;
-	str = const_cast<char *>(req.c_str());
-	char * pch;
-	pch = strtok (str,"&");
-	while (pch != NULL){
-		string tmp = pch;
-		tab.push_back(tmp);
-		pch = strtok (NULL, "&");
-	}
-	return tab;
-}
+
 //Management of different requests of a user
 void newSocket(int new_socket){
-	int idP=playeur++;
-    string comPseu="70";    
-    string comInfo="71";
-    string comMess="50";
-    string comSend="51";
+    int idP=playeur++;
+    string comPseu="pseudoSend";    
+    string comInfo="infoSend";
+    string comMess="messageSend";
+    string comSend="sockSend";
     string msghello = "";
-	while(true){
-	    string msgRead = readToString(new_socket);
-		vector<string> split = splitRequest(msgRead);
-	    if(msgRead.length()==0){
+    while(true){
+        string msgRead = readToString(new_socket);
+        //Divide a request into different string
+        vector<string> split;
+        char *str;
+        str = const_cast<char *>(msgRead.c_str());
+        char * pch;
+        pch = strtok (str,"&");
+        while (pch != NULL){
+            string tmp = pch;
+            split.push_back(tmp);
+            pch = strtok (NULL, "&");
+        }
+        if(msgRead.length()==0){
 	    	return;
 	    }
 		if(split[0].compare(comPseu)==0){
 			string msgReturn ="1";
 			msgRead = msgRead.substr(3,msgRead.length()-4);
-			pseudoList[msgRead]=msgRead;
+			pseudoMap[msgRead]=msgRead;
 			send(new_socket , msgReturn.c_str() , msgReturn.length() , 0 );
-			printf("new user %s%d\n",(msgRead.c_str()),idP );
+			printf("new user %s%d\n",(pseudoMap[msgRead].c_str()),idP );
 		}
 		if(split[0].compare(comInfo)==0){
 			string msgInfo ="0&";
@@ -134,8 +101,8 @@ void newSocket(int new_socket){
 		}
 		if(split[0].compare(comMess)==0){
 			stringstream ss;
-			for (unsigned int i = 0; i != roomList[atoi(split[1].c_str())].size(); i++){
-				ss << roomList[atoi(split[1].c_str())][i] << "\n";
+			for (unsigned int i = 0; i != chanList[atoi(split[1].c_str())].size(); i++){
+				ss << chanList[atoi(split[1].c_str())][i] << "\n";
 			}
 			string msgInfo=ss.str();
 			send(new_socket , msgInfo.c_str() , msgInfo.length() , 0 );
@@ -143,7 +110,7 @@ void newSocket(int new_socket){
 		if(split[0].compare(comSend)==0){
 			stringstream ss;
 			ss << split[2] << "#" << idP << " : " << split[3];
-			roomList[atoi(split[1].c_str())].push_back(ss.str());
+			chanList[atoi(split[1].c_str())].push_back(ss.str());
 		}
 	}
 }
@@ -166,24 +133,40 @@ void saveText(){
 	}
 }
 //Thread management
-void addTread(){
-	vector<thread> threads;
-	threads.emplace_back(saveText);
-	while(true){
-		while (playeur+5>=threadCount){
-			int clientSocket = accept(server_fd, (struct sockaddr *)&address,(socklen_t*)&addrlen);
-			threads.emplace_back(newSocket,clientSocket);
-			threadCount++;
-			for (thread & t : threads) {
-				if(t.joinable()==false)
-					t.join();
-			}
+int main(int argc, char const *argv[]){
+    for (int i = 0; i < numberOfRoom; ++i){
+        string name;
+        stringstream ssName;
+        /** Objects of this class use a string buffer that contains a sequence of characters. 
+        This sequence of characters can be accessed directly as a string object, using member str. **/
+        FILE * pFile;
+        ssName << "salle" << i << ".txt";
+        name = ssName.str();
+        pFile = fopen (name.c_str(),"r");  //. c_str() premet de récupérer le char* contenue dans un objet de type string
+        if (pFile!=NULL){
+            char c;
+            do{
+                vector<string> requestSplit;
+                string line="";
+                do{
+                    c = fgetc(pFile);
+                    if(c != EOF && c != '\n'){
+                        stringstream ss;
+                        ss << line << c;
+                        line = ss.str();
+                    }
+                }while(c != EOF && c != '\n');
+                chanList[i].push_back(line);
+            } while(c != EOF);
+            fclose (pFile);
+        }
+		if(chanList[i].size()==0){
+            stringstream ss;
+			ss << "Server : Hello room " << i << ".";
+			chanList[i].push_back(ss.str());
 		}
-	}
-}
-//server setting
-void paramServ(){
-	string text="";
+    }
+    string text="";
     int opt = 1;
     addrlen = sizeof(address);
     address.sin_family = AF_INET;
@@ -206,21 +189,22 @@ void paramServ(){
         perror("bind failed");
         exit(EXIT_FAILURE);
     }
-    if (listen(server_fd, 3) < 0){
+    if (listen(server_fd, 2) < 0){
         perror("listen");
         exit(EXIT_FAILURE);
     }
-	addTread();
-}
-int main(int argc, char const *argv[]){
-	for (int i = 0; i < numberOfRoom; ++i){
-		readRoomText(i);
-		if(roomList[i].size()==0){
-            stringstream ss;
-			ss << "Server : Hello room " << i << ".";
-			roomList[i].push_back(ss.str());
-		}
+    vector<thread> threads; //tableau dynamique de type thread qui s'appelle threads
+    threads.emplace_back(saveText);    // allocation mémoire qui lance saveText
+    while(true){
+        while (playeur+2>=threadCount){
+            int clientSocket = accept(server_fd, (struct sockaddr *)&address,(socklen_t*)&addrlen);
+            threads.emplace_back(newSocket,clientSocket);
+            threadCount++;
+            for (thread & t : threads) {
+                if(t.joinable()==false)
+                    t.join();
+            }
+        }
     }
-	paramServ();
     return 0;
 }
